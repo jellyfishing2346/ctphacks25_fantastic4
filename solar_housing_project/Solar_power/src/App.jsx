@@ -1,12 +1,17 @@
+import React, { useState } from 'react';
 import './App.css'
-import Test from './components/Test'  // Import your solar dashboard component
+import Button from './components/Button'
+import SearchBar from './components/search_bar.jsx';
 
 function App() {
+  
+
   return (
     <>
-      <Test />  {/* Render your solar dashboard */}
+    <Button></Button>
+    <SearchBar></SearchBar>
     </>
-  )
+  );
 }
 
 export default App
