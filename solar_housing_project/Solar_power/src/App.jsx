@@ -4,7 +4,7 @@ import './App.css';
 import Title from './components/title';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
-import Test from './components/test';
+import Test from './components/Test';
 
 const containerStyle = {
   width: '100%',
