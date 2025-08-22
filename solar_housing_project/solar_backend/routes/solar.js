@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const SOLAR_API_KEY = process.env.GOOGLE_SOLAR_API_KEY;
+const SOLAR_API_KEY = process.env.GOOGLE_SOLAR_API_KEY || process.env.VITE_SOLAR_API_KEY;
 
 // Get solar data by coordinates
 router.get('/coordinates', async (req, res) => {
@@ -21,14 +21,20 @@ router.get('/coordinates', async (req, res) => {
         }
 
         const url = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${lat}&location.longitude=${lng}&requiredQuality=HIGH&key=${SOLAR_API_KEY}`;
-        
+        console.log('Requesting Google Solar API:', url);
+
         const response = await fetch(url);
-        
+        const text = await response.text();
+
         if (!response.ok) {
-            throw new Error(`Google API error: ${response.status} ${response.statusText}`);
+            console.error('Google API error:', response.status, text);
+            return res.status(response.status).json({ 
+                error: `Google API error: ${response.status} ${response.statusText}`,
+                details: text
+            });
         }
         
-        const data = await response.json();
+        const data = JSON.parse(text);
         res.json(data);
         
     } catch (error) {
@@ -77,4 +83,4 @@ router.get('/postal', async (req, res) => {
     }
 });
 
-module.exports = router;
+module.exports = router; 
