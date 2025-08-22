@@ -3,7 +3,6 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 // Middleware - Updated CORS configuration
 app.use(cors({
@@ -33,8 +32,5 @@ app.use((error, req, res, next) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Solar Backend Server running on http://localhost:${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
-    console.log(`🌐 CORS enabled for localhost:3000 and 127.0.0.1:3000`);
-});
+// Do NOT call app.listen() on Vercel
+module.exports = app;
