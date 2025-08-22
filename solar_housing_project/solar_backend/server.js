@@ -4,6 +4,11 @@ require('dotenv').config();
 
 const app = express();
 
+// Root route for testing
+app.get('/', (req, res) => {
+    res.send('API is running!');
+});
+
 // Middleware - Updated CORS configuration
 app.use(cors({
     origin: [
