@@ -38,9 +38,5 @@ app.use((error, req, res, next) => {
     });
 });
 
-router.get('/test', (req, res) => {
-    res.json({ message: 'CORS test successful!' });
-});
-
 // Do NOT call app.listen() on Vercel
 module.exports = app;

@@ -84,4 +84,8 @@ router.get('/postal', async (req, res) => {
     }
 });
 
+router.get('/test', (req, res) => {
+    res.json({ message: 'CORS test successful!' });
+});
+
 module.exports = router; 
