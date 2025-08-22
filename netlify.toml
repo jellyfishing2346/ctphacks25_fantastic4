@@ -1,0 +1,4 @@
+[build]
+  base = "solar_housing_project/Solar_power"
+  publish = "dist"
+  command = "npm run build"
