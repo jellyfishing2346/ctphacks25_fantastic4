@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import './App.css';
 import Title from './components/title';
@@ -26,26 +26,26 @@ function getMarkerColor(score) {
   return 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
 }
 
-// Helper function to calculate CO2 avoided
 function getCO2Avoided(kWhPerYear) {
-  // US EPA average: 0.92 lbs CO2 per kWh
   const lbsCO2 = kWhPerYear * 0.92;
   const metricTons = lbsCO2 * 0.000453592 / 1000;
-  return metricTons.toFixed(2); // tons CO2/year
+  return metricTons.toFixed(2);
 }
 
 function MainAppContent() {
   const [search, setSearch] = useState('');
   const [locations, setLocations] = useState([]);
   const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: ['places']
   });
   const [mapCenter, setMapCenter] = useState(center);
   const [selectedMarker, setSelectedMarker] = useState(null);
+  const mapRef = useRef(null);
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!search) return;
+    if (!search || !mapRef.current) return;
 
     // Geocode the search input
     const geoRes = await fetch(
@@ -56,62 +56,65 @@ function MainAppContent() {
       const { lat, lng } = geoData.results[0].geometry.location;
       setMapCenter({ lat, lng });
 
-      // Use Places API to get 3 real nearby places
-      const placesNearbyRes = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=1000&type=establishment&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
-      );
-      const placesNearbyData = await placesNearbyRes.json();
-      const spots = (placesNearbyData.results || []).slice(0, 3).map((place, idx) => ({
-        name: place.name || `Spot ${idx + 1}`,
-        lat: place.geometry.location.lat,
-        lng: place.geometry.location.lng,
-        placeId: place.place_id
-      }));
+      // Use PlacesService from Maps JS API (no CORS issue)
+      const service = new window.google.maps.places.PlacesService(mapRef.current);
+      const request = {
+        location: { lat, lng },
+        radius: 1000,
+        type: 'establishment'
+      };
+      service.nearbySearch(request, async (results, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+          const spots = results.slice(0, 3);
+          const scoredSpots = await Promise.all(
+            spots.map(async (spot, idx) => {
+              // Get address
+              const addrRes = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?latlng=${spot.geometry.location.lat()},${spot.geometry.location.lng()}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
+              );
+              const addrData = await addrRes.json();
+              const address = addrData.results?.[0]?.formatted_address || '';
 
-      // Fetch solar scores, address, and photo for each spot
-      const scoredSpots = await Promise.all(
-        spots.map(async (spot) => {
-          try {
-            // Fetch address for each spot (reverse geocode)
-            const addrRes = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${spot.lat},${spot.lng}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
-            );
-            const addrData = await addrRes.json();
-            const address = addrData.results?.[0]?.formatted_address || '';
+              // Get photo
+              const photoUrl = spot.photos && spot.photos.length > 0
+                ? spot.photos[0].getUrl({ maxWidth: 400 })
+                : null;
 
-            // Fetch photo reference using Places API
-            const placesRes = await fetch(
-              `https://maps.googleapis.com/maps/api/place/details/json?place_id=${spot.placeId}&fields=photo&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
-            );
-            const placesData = await placesRes.json();
-            const photoRef = placesData.result?.photos?.[0]?.photo_reference;
-            const photoUrl = photoRef
-              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
-              : null;
+              // Fetch solar data
+              let score = 0, solarPotential = null;
+              try {
+                const solarRes = await fetch(
+                  `${import.meta.env.VITE_API_BASE_URL}/coordinates?lat=${spot.geometry.location.lat()}&lng=${spot.geometry.location.lng()}`
+                );
+                const solarData = await solarRes.json();
+                solarPotential = solarData.solarPotential;
+                score = solarPotential?.maxArrayPanelsCount
+                  ? Math.min(100, Math.round(solarPotential.maxArrayPanelsCount / 5))
+                  : 0;
+              } catch {}
 
-            // Fetch solar data
-            const solarRes = await fetch(
-              `${import.meta.env.VITE_API_BASE_URL}/coordinates?lat=${spot.lat}&lng=${spot.lng}`
-            );
-            const solarData = await solarRes.json();
-            const score = solarData?.solarPotential?.maxArrayPanelsCount
-              ? Math.min(100, Math.round(solarData.solarPotential.maxArrayPanelsCount / 5))
-              : 0;
-
-            return { ...spot, score, solarPotential: solarData.solarPotential, address, photoUrl };
-          } catch {
-            return { ...spot, score: 0 };
-          }
-        })
-      );
-      setLocations(scoredSpots);
+              return {
+                name: spot.name || `Spot ${idx + 1}`,
+                lat: spot.geometry.location.lat(),
+                lng: spot.geometry.location.lng(),
+                address,
+                photoUrl,
+                score,
+                solarPotential
+              };
+            })
+          );
+          setLocations(scoredSpots);
+        } else {
+          setLocations([]);
+        }
+      });
     }
   };
 
   return (
     <div className="container-fluid min-vh-100" style={{ background: '#b3d1f7' }}>
       <Title />
-      {/* Centered Search Bar */}
       <div className="row justify-content-center pt-4 pb-2">
         <div className="col-md-8">
           <form className="input-group shadow rounded" onSubmit={handleSearch}>
@@ -126,7 +129,6 @@ function MainAppContent() {
           </form>
         </div>
       </div>
-      {/* Google Map with Colored Markers */}
       <div className="row mb-4">
         <div className="col-12">
           {isLoaded && (
@@ -134,6 +136,7 @@ function MainAppContent() {
               mapContainerStyle={containerStyle}
               center={mapCenter}
               zoom={12}
+              onLoad={map => (mapRef.current = map)}
             >
               {locations.map((loc, idx) => (
                 <Marker
@@ -168,7 +171,6 @@ function MainAppContent() {
           )}
         </div>
       </div>
-      {/* Results and UV Index Legend */}
       <div className="row">
         <div className="col-md-3 d-flex mb-2 me-5">
           <div className="card shadow h-100">
@@ -209,7 +211,6 @@ function MainAppContent() {
           </div>
         </div>
       </div>
-      {/* Test Component Description Section */}
       <div className="row justify-content-center mt-5">
         <div className="col-md-8">
           <div className="card shadow">
