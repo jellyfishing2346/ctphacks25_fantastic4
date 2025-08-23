@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import './App.css';
 import Title from './components/title';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import Test from './components/Test';
 
 const containerStyle = {
@@ -41,6 +41,7 @@ function MainAppContent() {
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
   });
   const [mapCenter, setMapCenter] = useState(center);
+  const [selectedMarker, setSelectedMarker] = useState(null);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -62,10 +63,18 @@ function MainAppContent() {
         { name: 'Spot 3', lat: lat - 0.01, lng: lng - 0.01 }
       ];
 
-      // Fetch solar scores and solarPotential for each spot
+      // Fetch solar scores, solarPotential, and address for each spot
       const scoredSpots = await Promise.all(
         spots.map(async (spot) => {
           try {
+            // Fetch address for each spot (reverse geocode)
+            const addrRes = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${spot.lat},${spot.lng}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
+            );
+            const addrData = await addrRes.json();
+            const address = addrData.results?.[0]?.formatted_address || '';
+
+            // Fetch solar data
             const solarRes = await fetch(
               `${import.meta.env.VITE_API_BASE_URL}/coordinates?lat=${spot.lat}&lng=${spot.lng}`
             );
@@ -73,8 +82,10 @@ function MainAppContent() {
             const score = solarData?.solarPotential?.maxArrayPanelsCount
               ? Math.min(100, Math.round(solarData.solarPotential.maxArrayPanelsCount / 5))
               : 0;
-            // Pass the full solarPotential object for CO2 calculation
-            return { ...spot, score, solarPotential: solarData.solarPotential };
+
+            // Optionally, you could fetch a photo using Google Places API here
+
+            return { ...spot, score, solarPotential: solarData.solarPotential, address };
           } catch {
             return { ...spot, score: 0 };
           }
@@ -117,8 +128,30 @@ function MainAppContent() {
                   position={{ lat: loc.lat, lng: loc.lng }}
                   title={loc.name}
                   icon={getMarkerColor(loc.score)}
+                  onClick={() => setSelectedMarker(loc)}
                 />
               ))}
+              {selectedMarker && (
+                <InfoWindow
+                  position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
+                  onCloseClick={() => setSelectedMarker(null)}
+                >
+                  <div style={{ maxWidth: 220 }}>
+                    <h6>{selectedMarker.name}</h6>
+                    <div>
+                      <b>Address:</b> {selectedMarker.address || "Loading..."}
+                    </div>
+                    {/* If you add photoUrl to your spot, you can show it here */}
+                    {/* {selectedMarker.photoUrl && (
+                      <img
+                        src={selectedMarker.photoUrl}
+                        alt="Location"
+                        style={{ width: "100%", borderRadius: 8, marginTop: 8 }}
+                      />
+                    )} */}
+                  </div>
+                </InfoWindow>
+              )}
             </GoogleMap>
           )}
         </div>
