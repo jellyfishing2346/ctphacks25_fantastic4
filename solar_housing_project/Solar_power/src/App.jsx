@@ -63,7 +63,7 @@ function MainAppContent() {
         { name: 'Spot 3', lat: lat - 0.01, lng: lng - 0.01 }
       ];
 
-      // Fetch solar scores, solarPotential, and address for each spot
+      // Fetch solar scores, address, and photo for each spot
       const scoredSpots = await Promise.all(
         spots.map(async (spot) => {
           try {
@@ -74,6 +74,16 @@ function MainAppContent() {
             const addrData = await addrRes.json();
             const address = addrData.results?.[0]?.formatted_address || '';
 
+            // Fetch photo reference using Places API
+            const placesRes = await fetch(
+              `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${spot.lat},${spot.lng}&radius=50&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
+            );
+            const placesData = await placesRes.json();
+            const photoRef = placesData.results?.[0]?.photos?.[0]?.photo_reference;
+            const photoUrl = photoRef
+              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
+              : null;
+
             // Fetch solar data
             const solarRes = await fetch(
               `${import.meta.env.VITE_API_BASE_URL}/coordinates?lat=${spot.lat}&lng=${spot.lng}`
@@ -83,9 +93,7 @@ function MainAppContent() {
               ? Math.min(100, Math.round(solarData.solarPotential.maxArrayPanelsCount / 5))
               : 0;
 
-            // Optionally, you could fetch a photo using Google Places API here
-
-            return { ...spot, score, solarPotential: solarData.solarPotential, address };
+            return { ...spot, score, solarPotential: solarData.solarPotential, address, photoUrl };
           } catch {
             return { ...spot, score: 0 };
           }
@@ -141,14 +149,13 @@ function MainAppContent() {
                     <div>
                       <b>Address:</b> {selectedMarker.address || "Loading..."}
                     </div>
-                    {/* If you add photoUrl to your spot, you can show it here */}
-                    {/* {selectedMarker.photoUrl && (
+                    {selectedMarker.photoUrl && (
                       <img
                         src={selectedMarker.photoUrl}
                         alt="Location"
                         style={{ width: "100%", borderRadius: 8, marginTop: 8 }}
                       />
-                    )} */}
+                    )}
                   </div>
                 </InfoWindow>
               )}
