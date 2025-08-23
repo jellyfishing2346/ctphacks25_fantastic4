@@ -26,6 +26,14 @@ function getMarkerColor(score) {
   return 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
 }
 
+// Helper function to calculate CO2 avoided
+function getCO2Avoided(kWhPerYear) {
+  // US EPA average: 0.92 lbs CO2 per kWh
+  const lbsCO2 = kWhPerYear * 0.92;
+  const metricTons = lbsCO2 * 0.000453592 / 1000;
+  return metricTons.toFixed(2); // tons CO2/year
+}
+
 function MainAppContent() {
   const [search, setSearch] = useState('');
   const [locations, setLocations] = useState([]);
@@ -35,46 +43,46 @@ function MainAppContent() {
   const [mapCenter, setMapCenter] = useState(center);
 
   const handleSearch = async (e) => {
-  e.preventDefault();
-  if (!search) return;
+    e.preventDefault();
+    if (!search) return;
 
-  // Geocode the search input
-  const geoRes = await fetch(
-    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(search)}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
-  );
-  const geoData = await geoRes.json();
-  if (geoData.results && geoData.results.length > 0) {
-    const { lat, lng } = geoData.results[0].geometry.location;
-    setMapCenter({ lat, lng });
-
-    // Example: create 3 nearby spots for demo
-    const spots = [
-      { name: 'Spot 1', lat, lng },
-      { name: 'Spot 2', lat: lat + 0.01, lng: lng + 0.01 },
-      { name: 'Spot 3', lat: lat - 0.01, lng: lng - 0.01 }
-    ];
-
-    // Fetch solar scores for each spot
-    const scoredSpots = await Promise.all(
-      spots.map(async (spot) => {
-        try {
-          const solarRes = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL}/coordinates?lat=${spot.lat}&lng=${spot.lng}`
-          );
-          const solarData = await solarRes.json();
-          // Example: extract a score from the solarData (customize as needed)
-          const score = solarData?.solarPotential?.maxArrayPanelsCount
-            ? Math.min(100, Math.round(solarData.solarPotential.maxArrayPanelsCount / 5))
-            : 0;
-          return { ...spot, score };
-        } catch {
-          return { ...spot, score: 0 };
-        }
-      })
+    // Geocode the search input
+    const geoRes = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(search)}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
     );
-    setLocations(scoredSpots);
-  }
-};
+    const geoData = await geoRes.json();
+    if (geoData.results && geoData.results.length > 0) {
+      const { lat, lng } = geoData.results[0].geometry.location;
+      setMapCenter({ lat, lng });
+
+      // Example: create 3 nearby spots for demo
+      const spots = [
+        { name: 'Spot 1', lat, lng },
+        { name: 'Spot 2', lat: lat + 0.01, lng: lng + 0.01 },
+        { name: 'Spot 3', lat: lat - 0.01, lng: lng - 0.01 }
+      ];
+
+      // Fetch solar scores and solarPotential for each spot
+      const scoredSpots = await Promise.all(
+        spots.map(async (spot) => {
+          try {
+            const solarRes = await fetch(
+              `${import.meta.env.VITE_API_BASE_URL}/coordinates?lat=${spot.lat}&lng=${spot.lng}`
+            );
+            const solarData = await solarRes.json();
+            const score = solarData?.solarPotential?.maxArrayPanelsCount
+              ? Math.min(100, Math.round(solarData.solarPotential.maxArrayPanelsCount / 5))
+              : 0;
+            // Pass the full solarPotential object for CO2 calculation
+            return { ...spot, score, solarPotential: solarData.solarPotential };
+          } catch {
+            return { ...spot, score: 0 };
+          }
+        })
+      );
+      setLocations(scoredSpots);
+    }
+  };
 
   return (
     <div className="container-fluid min-vh-100" style={{ background: '#b3d1f7' }}>
@@ -99,19 +107,19 @@ function MainAppContent() {
         <div className="col-12">
           {isLoaded && (
             <GoogleMap
-               mapContainerStyle={containerStyle}
-               center={mapCenter}
-               zoom={12}
-             >
-            {locations.map((loc, idx) => (
-              <Marker
-                key={idx}
-                position={{ lat: loc.lat, lng: loc.lng }}
-                title={loc.name}
-                icon={getMarkerColor(loc.score)}
-              />
-            ))}
-          </GoogleMap>
+              mapContainerStyle={containerStyle}
+              center={mapCenter}
+              zoom={12}
+            >
+              {locations.map((loc, idx) => (
+                <Marker
+                  key={idx}
+                  position={{ lat: loc.lat, lng: loc.lng }}
+                  title={loc.name}
+                  icon={getMarkerColor(loc.score)}
+                />
+              ))}
+            </GoogleMap>
           )}
         </div>
       </div>
@@ -124,6 +132,13 @@ function MainAppContent() {
               {locations.map((loc, idx) => (
                 <div key={idx}>
                   <b>{loc.name}</b> - Solar Score: {loc.score}
+                  {loc.solarPotential?.maxArrayKwhPerYear && (
+                    <div>
+                      <small>
+                        CO₂ Avoided: {getCO2Avoided(loc.solarPotential.maxArrayKwhPerYear)} tons/year
+                      </small>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
