@@ -56,12 +56,17 @@ function MainAppContent() {
       const { lat, lng } = geoData.results[0].geometry.location;
       setMapCenter({ lat, lng });
 
-      // Example: create 3 nearby spots for demo
-      const spots = [
-        { name: 'Spot 1', lat, lng },
-        { name: 'Spot 2', lat: lat + 0.01, lng: lng + 0.01 },
-        { name: 'Spot 3', lat: lat - 0.01, lng: lng - 0.01 }
-      ];
+      // Use Places API to get 3 real nearby places
+      const placesNearbyRes = await fetch(
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=1000&type=establishment&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
+      );
+      const placesNearbyData = await placesNearbyRes.json();
+      const spots = (placesNearbyData.results || []).slice(0, 3).map((place, idx) => ({
+        name: place.name || `Spot ${idx + 1}`,
+        lat: place.geometry.location.lat,
+        lng: place.geometry.location.lng,
+        placeId: place.place_id
+      }));
 
       // Fetch solar scores, address, and photo for each spot
       const scoredSpots = await Promise.all(
@@ -76,10 +81,10 @@ function MainAppContent() {
 
             // Fetch photo reference using Places API
             const placesRes = await fetch(
-              `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${spot.lat},${spot.lng}&radius=50&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
+              `https://maps.googleapis.com/maps/api/place/details/json?place_id=${spot.placeId}&fields=photo&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
             );
             const placesData = await placesRes.json();
-            const photoRef = placesData.results?.[0]?.photos?.[0]?.photo_reference;
+            const photoRef = placesData.result?.photos?.[0]?.photo_reference;
             const photoUrl = photoRef
               ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
               : null;
