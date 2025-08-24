@@ -5,6 +5,8 @@ import Title from './components/title';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import Test from './components/Test';
+import { AuthProvider } from "./AuthContext";
+import LoginSignup from './LoginSignup';
 
 const containerStyle = {
   width: '100%',
@@ -241,12 +243,15 @@ function MainAppContent() {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<MainAppContent />} />
-        <Route path="/test" element={<Test />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<MainAppContent />} />
+          <Route path="/login" element={<LoginSignup />} />
+          <Route path="/test" element={<Test />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
