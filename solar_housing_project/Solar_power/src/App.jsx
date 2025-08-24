@@ -5,7 +5,7 @@ import Title from './components/title';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import Test from './components/Test';
-import { AuthProvider } from "./AuthContext";
+import { AuthProvider, useAuth } from "./AuthContext";
 import LoginSignup from './LoginSignup';
 
 const containerStyle = {
@@ -32,6 +32,23 @@ function getCO2Avoided(kWhPerYear) {
   const lbsCO2 = kWhPerYear * 0.92;
   const metricTons = lbsCO2 * 0.000453592 / 1000;
   return metricTons.toFixed(2);
+}
+
+// AuthStatus component for login/logout UI
+function AuthStatus() {
+  const { user, logout } = useAuth();
+  return (
+    <div className="d-flex justify-content-end align-items-center mb-2">
+      {user ? (
+        <>
+          <span className="me-2">Welcome, {user.email}!</span>
+          <button className="btn btn-sm btn-outline-secondary" onClick={logout}>Logout</button>
+        </>
+      ) : (
+        <Link to="/login" className="btn btn-sm btn-primary">Login / Sign Up</Link>
+      )}
+    </div>
+  );
 }
 
 function MainAppContent() {
@@ -116,6 +133,7 @@ function MainAppContent() {
 
   return (
     <div className="container-fluid min-vh-100" style={{ background: '#b3d1f7' }}>
+      <AuthStatus />
       <Title />
       <div className="row justify-content-center pt-4 pb-2">
         <div className="col-md-8">
